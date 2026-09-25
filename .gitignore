@@ -1,0 +1,6 @@
+.secrets/
+__pycache__/
+*.pyc
+vps/source_api.py
+output/
+source.mp4
