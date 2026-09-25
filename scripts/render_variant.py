@@ -29,6 +29,7 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 def make_hook_card(text: str, out: Path):
+    text = "".join(ch for ch in text if ord(ch) <= 0xFFFF and not 0xD800 <= ord(ch) <= 0xDFFF).strip()
     canvas = Image.new("RGBA", (960, 230), (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle((0, 0, 960, 230), radius=36, fill=(8, 12, 18, 222))
