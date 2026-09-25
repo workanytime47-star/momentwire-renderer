@@ -19,6 +19,15 @@ on:
         description: Source-grounded hook text
         required: true
         type: string
+      source_start_seconds:
+        description: Selected source start in seconds
+        required: true
+        default: "0"
+        type: string
+      source_duration_seconds:
+        description: Selected source duration in seconds
+        required: true
+        type: string
       quality_floor:
         description: Minimum accepted quality score
         required: true
@@ -41,6 +50,8 @@ jobs:
       EXPECTED_BYTES: ${{ inputs.expected_bytes }}
       HOOK: ${{ inputs.hook }}
       BATCH_ID: ${{ inputs.batch_id }}
+      SOURCE_START_SECONDS: ${{ inputs.source_start_seconds }}
+      SOURCE_DURATION_SECONDS: ${{ inputs.source_duration_seconds }}
       QUALITY_FLOOR: ${{ inputs.quality_floor }}
       VARIANT: ${{ matrix.variant }}
 
@@ -84,6 +95,16 @@ jobs:
             --batch-id "$BATCH_ID"
           SCORE="$(python -c "import json; print(json.load(open('output/${VARIANT}.json'))['quality_rubric']['computed_score'])")"
           python -c "import sys; sys.exit(0 if float('$SCORE') >= float('$QUALITY_FLOOR') else 1)"
+
+      - name: Strict playback QA
+        run: |
+          python scripts/strict_qa.py \
+            --final "output/${VARIANT}.mp4" \
+            --source source.mp4 \
+            --source-start "$SOURCE_START_SECONDS" \
+            --source-duration "$SOURCE_DURATION_SECONDS" \
+            --output "output/${VARIANT}.strict-qa.json"
+
       - name: Upload verified variant
         uses: actions/upload-artifact@v4
         with:
