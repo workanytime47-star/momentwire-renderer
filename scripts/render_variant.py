@@ -81,7 +81,7 @@ def visual_detail_score(path: Path) -> float:
     return round(sum(highs[i] - lows[i] for i in range(count)) / count, 2)
 
 
-def render(source: Path, out: Path, variant: str, hook: str):
+def render(source: Path, out: Path, variant: str, hook: str, source_start: float, source_duration: float):
     display_hook, rendered_hook, font_size = wrap_hook(hook)
     hook_file = out.with_suffix(".hook.txt")
     hook_file.write_text(display_hook, encoding="utf-8")
@@ -110,7 +110,8 @@ def render(source: Path, out: Path, variant: str, hook: str):
         )
         layout = "content_center_hook_lower"
     run([
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(source),
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-ss", f"{max(0.0, source_start):.6f}", "-t", f"{source_duration:.6f}", "-i", str(source),
         "-filter_complex", filt, "-map", "[outv]", "-map", "0:a?",
         "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
@@ -178,11 +179,15 @@ def main():
     ap.add_argument("--variant", choices=["hook-first", "reaction-led"], required=True)
     ap.add_argument("--hook", required=True)
     ap.add_argument("--batch-id", type=int, required=True)
+    ap.add_argument("--source-start", type=float, required=True)
+    ap.add_argument("--source-duration", type=float, required=True)
     args = ap.parse_args()
 
     source, out = Path(args.source), Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
-    render_evidence = render(source, out, args.variant, args.hook)
+    if args.source_start < 0 or args.source_duration <= 0:
+        raise RuntimeError("invalid Director source window")
+    render_evidence = render(source, out, args.variant, args.hook, args.source_start, args.source_duration)
     technical = validate_output(out)
     contact = out.with_suffix(".contact.jpg")
     make_contact_sheet(out, contact)
@@ -193,6 +198,7 @@ def main():
         "output_file": out.name,
         "output_sha256": sha256(out),
         "output_bytes": out.stat().st_size,
+        "director_source_window": {"start_seconds": args.source_start, "duration_seconds": args.source_duration},
         "technical_qa": technical,
         "visual_qa": {
             "full_source_frame_preserved": True,
