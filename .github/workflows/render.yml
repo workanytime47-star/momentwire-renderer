@@ -88,7 +88,9 @@ jobs:
             --output "output/${VARIANT}.mp4" \
             --variant "$VARIANT" \
             --hook "$HOOK" \
-            --batch-id "$BATCH_ID"
+            --batch-id "$BATCH_ID" \
+            --source-start "$SOURCE_START_SECONDS" \
+            --source-duration "$SOURCE_DURATION_SECONDS"
           SCORE="$(python3 -c "import json; print(json.load(open('output/${VARIANT}.json'))['quality_rubric']['computed_score'])")"
           python3 -c "import sys; sys.exit(0 if float('$SCORE') >= float('$QUALITY_FLOOR') else 1)"
 
