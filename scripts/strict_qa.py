@@ -189,6 +189,7 @@ def repair_actions_for_failures(failures: list[str]) -> list[dict[str, str]]:
         "AUDIO_STREAM_START_LATE": ("REBASE_AUDIO_START", "Rebase audio timestamps to start at zero before re-review."),
         "FPS_BELOW_MINIMUM": ("RERENDER_MINIMUM_FPS", "Rerender at or above the minimum frame rate."),
         "AUDIO_VIDEO_DURATION_SKEW": ("RESYNC_AUDIO_VIDEO", "Rerender with aligned audio/video duration."),
+        "SOURCE_WINDOW_DURATION_MISMATCH": ("RERENDER_APPROVED_WINDOW", "Rerender the exact Director-approved source window; final duration must match it."),
         "VIDEO_TIMESTAMP_GAP": ("REENCODE_CONTINUOUS_TIMESTAMPS", "Reencode with continuous frame timestamps."),
         "OPENING_FREEZE_OR_STUTTER": ("REPAIR_OPENING", "Trim or rerender the opening; do not publish with a frozen/stuttering start."),
         "WHOLE_CLIP_FREEZE": ("RERENDER_MOTION_CONTINUITY", "Rerender the affected section and verify motion continuity."),
@@ -228,6 +229,8 @@ def analyze_final_render(
         failures.append("FPS_BELOW_MINIMUM")
     if abs(video_duration - audio_duration) > float(policy["max_av_duration_skew_seconds"]):
         failures.append("AUDIO_VIDEO_DURATION_SKEW")
+    if source_duration_seconds is not None and abs(video_duration - float(source_duration_seconds)) > 0.12:
+        failures.append("SOURCE_WINDOW_DURATION_MISMATCH")
     timestamps = _frame_timestamps(p)
     gaps = [b - a for a, b in zip(timestamps, timestamps[1:])]
     max_gap = max(gaps) if gaps else 0.0
