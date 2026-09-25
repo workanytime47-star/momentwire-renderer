@@ -60,15 +60,10 @@ jobs:
       - name: Checkout renderer
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install runtime dependencies
+      - name: Verify runtime dependencies
         run: |
-          python -m pip install --disable-pip-version-check pillow
-          if ! command -v ffmpeg >/dev/null; then
+          python3 --version
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg
           fi
@@ -88,18 +83,18 @@ jobs:
       - name: Render and QA variant
         run: |
           mkdir -p output
-          python scripts/render_variant.py \
+          python3 scripts/render_variant.py \
             --source source.mp4 \
             --output "output/${VARIANT}.mp4" \
             --variant "$VARIANT" \
             --hook "$HOOK" \
             --batch-id "$BATCH_ID"
-          SCORE="$(python -c "import json; print(json.load(open('output/${VARIANT}.json'))['quality_rubric']['computed_score'])")"
-          python -c "import sys; sys.exit(0 if float('$SCORE') >= float('$QUALITY_FLOOR') else 1)"
+          SCORE="$(python3 -c "import json; print(json.load(open('output/${VARIANT}.json'))['quality_rubric']['computed_score'])")"
+          python3 -c "import sys; sys.exit(0 if float('$SCORE') >= float('$QUALITY_FLOOR') else 1)"
 
       - name: Strict playback QA
         run: |
-          python scripts/strict_qa.py \
+          python3 scripts/strict_qa.py \
             --final "output/${VARIANT}.mp4" \
             --source source.mp4 \
             --source-start "$SOURCE_START_SECONDS" \
