@@ -385,6 +385,8 @@ def _cli() -> None:
         "final_bytes": final.stat().st_size,
         "source_sha256": _sha256(source),
         "source_bytes": source.stat().st_size,
+        "source_start_seconds": float(args.source_start),
+        "source_duration_seconds": float(args.source_duration),
         "github_repository": os.getenv("GITHUB_REPOSITORY", ""),
         "github_run_id": os.getenv("GITHUB_RUN_ID", ""),
         "github_sha": os.getenv("GITHUB_SHA", ""),
