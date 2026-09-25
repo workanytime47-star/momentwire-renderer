@@ -7,20 +7,12 @@ on:
         description: MomentWire creative batch ID
         required: true
         type: string
-      source_url:
-        description: Public provider clip URL
-        required: true
-        type: string
       expected_sha256:
         description: Exact approved source SHA-256
         required: true
         type: string
-      expected_video_sha256:
-        description: Exact approved H.264 elementary stream SHA-256
-        required: true
-        type: string
-      expected_audio_sha256:
-        description: Exact approved AAC elementary stream SHA-256
+      expected_bytes:
+        description: Exact approved source byte size
         required: true
         type: string
       hook:
@@ -35,7 +27,6 @@ on:
 
 permissions:
   contents: read
-
 jobs:
   render:
     runs-on: ubuntu-latest
@@ -45,10 +36,9 @@ jobs:
       matrix:
         variant: [hook-first, reaction-led]
     env:
-      SOURCE_URL: ${{ inputs.source_url }}
+      SOURCE_URL: ${{ secrets.MW_SOURCE_URL }}
       EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
-      EXPECTED_VIDEO_SHA256: ${{ inputs.expected_video_sha256 }}
-      EXPECTED_AUDIO_SHA256: ${{ inputs.expected_audio_sha256 }}
+      EXPECTED_BYTES: ${{ inputs.expected_bytes }}
       HOOK: ${{ inputs.hook }}
       BATCH_ID: ${{ inputs.batch_id }}
       QUALITY_FLOOR: ${{ inputs.quality_floor }}
@@ -65,29 +55,21 @@ jobs:
 
       - name: Install runtime dependencies
         run: |
-          python -m pip install --disable-pip-version-check yt-dlp pillow opencv-python-headless
+          python -m pip install --disable-pip-version-check pillow opencv-python-headless
           if ! command -v ffmpeg >/dev/null; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg
           fi
-      - name: Fetch exact provider source
+      - name: Fetch exact approved source
         run: |
-          yt-dlp --no-playlist -f "best[ext=mp4]/best" --no-part --force-overwrites \
-            -o source.mp4 "$SOURCE_URL"
+          test -n "$SOURCE_URL"
+          curl -fsSL --retry 3 --retry-delay 2 "$SOURCE_URL" -o source.mp4
+          ACTUAL_BYTES="$(stat -c %s source.mp4)"
           ACTUAL_SHA256="$(sha256sum source.mp4 | awk '{print $1}')"
+          echo "source_bytes=$ACTUAL_BYTES"
           echo "source_sha256=$ACTUAL_SHA256"
-          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            VIDEO_SHA256="$(ffmpeg -v error -i source.mp4 -map 0:v:0 -c copy -f h264 - | sha256sum | awk '{print $1}')"
-            AUDIO_SHA256="$(ffmpeg -v error -i source.mp4 -map 0:a:0 -c copy -f adts - | sha256sum | awk '{print $1}')"
-            echo "container_sha_mismatch=true"
-            echo "video_stream_sha256=$VIDEO_SHA256"
-            echo "audio_stream_sha256=$AUDIO_SHA256"
-            if [ "$VIDEO_SHA256" != "$EXPECTED_VIDEO_SHA256" ] || [ "$AUDIO_SHA256" != "$EXPECTED_AUDIO_SHA256" ]; then
-              echo "Approved elementary stream identity mismatch" >&2
-              exit 42
-            fi
-            echo "Elementary stream identity verified exactly; container-only drift accepted."
-          fi
+          test "$ACTUAL_BYTES" = "$EXPECTED_BYTES"
+          test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
           ffprobe -v error -show_entries stream=codec_type,width,height \
             -show_entries format=duration -of json source.mp4
 
@@ -102,7 +84,6 @@ jobs:
             --batch-id "$BATCH_ID"
           SCORE="$(python -c "import json; print(json.load(open('output/${VARIANT}.json'))['quality_rubric']['computed_score'])")"
           python -c "import sys; sys.exit(0 if float('$SCORE') >= float('$QUALITY_FLOOR') else 1)"
-
       - name: Upload verified variant
         uses: actions/upload-artifact@v4
         with:
