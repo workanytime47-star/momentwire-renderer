@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import unicodedata
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageStat
@@ -28,8 +29,15 @@ def sha256(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+def normalize_hook(text: str) -> str:
+    safe = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii")
+    safe = " ".join(safe.split()).strip()
+    if not safe:
+        raise RuntimeError("hook contains no supported renderable text")
+    return safe
+
+
 def make_hook_card(text: str, out: Path):
-    text = "".join(ch for ch in text if ord(ch) <= 0xFFFF and not 0xD800 <= ord(ch) <= 0xDFFF).strip()
     canvas = Image.new("RGBA", (960, 230), (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle((0, 0, 960, 230), radius=36, fill=(8, 12, 18, 222))
@@ -88,7 +96,8 @@ def make_contact_sheet(path: Path, out: Path):
 
 def render(source: Path, out: Path, variant: str, hook: str):
     card = out.with_suffix(".hook.png")
-    make_hook_card(hook, card)
+    rendered_hook = normalize_hook(hook)
+    make_hook_card(rendered_hook, card)
     if variant == "hook-first":
         filt = (
             "[0:v]split=2[bg0][fg0];"
@@ -117,7 +126,14 @@ def render(source: Path, out: Path, variant: str, hook: str):
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
         "-shortest", "-movflags", "+faststart", str(out),
     ])
-    return {"layout": layout, "source_framing": "full_frame_preserved", "crop_applied": False}
+    return {
+        "layout": layout,
+        "source_framing": "full_frame_preserved",
+        "crop_applied": False,
+        "rendered_hook": rendered_hook,
+        "hook_sanitized": rendered_hook != hook,
+        "unsupported_glyphs_removed": True,
+    }
 
 def validate_output(path: Path) -> dict:
     meta = probe(path)
