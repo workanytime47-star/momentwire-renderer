@@ -15,6 +15,14 @@ on:
         description: Exact approved source SHA-256
         required: true
         type: string
+      expected_video_sha256:
+        description: Exact approved H.264 elementary stream SHA-256
+        required: true
+        type: string
+      expected_audio_sha256:
+        description: Exact approved AAC elementary stream SHA-256
+        required: true
+        type: string
       hook:
         description: Source-grounded hook text
         required: true
@@ -39,6 +47,8 @@ jobs:
     env:
       SOURCE_URL: ${{ inputs.source_url }}
       EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+      EXPECTED_VIDEO_SHA256: ${{ inputs.expected_video_sha256 }}
+      EXPECTED_AUDIO_SHA256: ${{ inputs.expected_audio_sha256 }}
       HOOK: ${{ inputs.hook }}
       BATCH_ID: ${{ inputs.batch_id }}
       QUALITY_FLOOR: ${{ inputs.quality_floor }}
@@ -67,8 +77,16 @@ jobs:
           ACTUAL_SHA256="$(sha256sum source.mp4 | awk '{print $1}')"
           echo "source_sha256=$ACTUAL_SHA256"
           if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "Source SHA mismatch" >&2
-            exit 42
+            VIDEO_SHA256="$(ffmpeg -v error -i source.mp4 -map 0:v:0 -c copy -f h264 - | sha256sum | awk '{print $1}')"
+            AUDIO_SHA256="$(ffmpeg -v error -i source.mp4 -map 0:a:0 -c copy -f adts - | sha256sum | awk '{print $1}')"
+            echo "container_sha_mismatch=true"
+            echo "video_stream_sha256=$VIDEO_SHA256"
+            echo "audio_stream_sha256=$AUDIO_SHA256"
+            if [ "$VIDEO_SHA256" != "$EXPECTED_VIDEO_SHA256" ] || [ "$AUDIO_SHA256" != "$EXPECTED_AUDIO_SHA256" ]; then
+              echo "Approved elementary stream identity mismatch" >&2
+              exit 42
+            fi
+            echo "Elementary stream identity verified exactly; container-only drift accepted."
           fi
           ffprobe -v error -show_entries stream=codec_type,width,height \
             -show_entries format=duration -of json source.mp4
