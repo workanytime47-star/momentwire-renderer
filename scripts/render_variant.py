@@ -91,9 +91,12 @@ def render(source: Path, out: Path, variant: str, hook: str, source_start: float
         f"textfile='{hook_path}':fontsize={font_size}:fontcolor=white:line_spacing=10:"
         "box=1:boxcolor=black@0.87:boxborderw=30:x=(w-text_w)/2:fix_bounds=1"
     )
+    video_cut = f"[0:v]trim=start={source_start:.6f}:duration={source_duration:.6f},setpts=PTS-STARTPTS[cutv];"
+    audio_cut = f"[0:a]atrim=start={source_start:.6f}:duration={source_duration:.6f},asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0[outa];"
     if variant == "hook-first":
         filt = (
-            "[0:v]split=2[bg0][fg0];"
+            video_cut + audio_cut +
+            "[cutv]split=2[bg0][fg0];"
             "[bg0]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=28,eq=brightness=-0.28[bg];"
             "[fg0]scale=1000:-2[fg];"
             "[bg][fg]overlay=(W-w)/2:680[base];"
@@ -102,7 +105,8 @@ def render(source: Path, out: Path, variant: str, hook: str, source_start: float
         layout = "hook_top_full_frame_centered"
     else:
         filt = (
-            "[0:v]split=2[bg0][fg0];"
+            video_cut + audio_cut +
+            "[cutv]split=2[bg0][fg0];"
             "[bg0]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=24,eq=brightness=-0.22[bg];"
             "[fg0]scale=1080:-2[fg];"
             "[bg][fg]overlay=(W-w)/2:620[base];"
@@ -111,11 +115,11 @@ def render(source: Path, out: Path, variant: str, hook: str, source_start: float
         layout = "content_center_hook_lower"
     run([
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-ss", f"{max(0.0, source_start):.6f}", "-t", f"{source_duration:.6f}", "-i", str(source),
-        "-filter_complex", filt, "-map", "[outv]", "-map", "0:a?",
+        "-i", str(source),
+        "-filter_complex", filt, "-map", "[outv]", "-map", "[outa]",
         "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-        "-shortest", "-movflags", "+faststart", str(out),
+        "-t", f"{source_duration:.6f}", "-movflags", "+faststart", str(out),
     ])
     return {
         "layout": layout,
