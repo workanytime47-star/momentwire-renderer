@@ -70,7 +70,7 @@ jobs:
       - name: Fetch exact approved source
         run: |
           test -n "$SOURCE_URL"
-          curl -fsSL --retry 3 --retry-delay 2 "$SOURCE_URL" -o source.mp4
+          curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors "$SOURCE_URL" -o source.mp4
           ACTUAL_BYTES="$(stat -c %s source.mp4)"
           ACTUAL_SHA256="$(sha256sum source.mp4 | awk '{print $1}')"
           echo "source_bytes=$ACTUAL_BYTES"
