@@ -63,13 +63,24 @@ jobs:
       - name: Verify runtime dependencies
         run: |
           python3 --version
-          if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
-            ffmpeg -version | head -1
-            ffprobe -version | head -1
-          else
-            sudo timeout 120s apt-get update -qq
-            sudo timeout 180s apt-get install -y -qq ffmpeg
+          if ! (command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null); then
+            if sudo timeout 90s apt-get update -qq && sudo timeout 120s apt-get install -y -qq ffmpeg; then
+              echo "ffmpeg installed via apt"
+            else
+              echo "apt ffmpeg install failed/timed out; using static GitHub build"
+              curl -fL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 \
+                https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+                -o /tmp/ffmpeg-static.tar.xz
+              mkdir -p /tmp/ffmpeg-static
+              tar -xJf /tmp/ffmpeg-static.tar.xz -C /tmp/ffmpeg-static --strip-components=1
+              sudo install -m 0755 /tmp/ffmpeg-static/bin/ffmpeg /usr/local/bin/ffmpeg
+              sudo install -m 0755 /tmp/ffmpeg-static/bin/ffprobe /usr/local/bin/ffprobe
+            fi
           fi
+          command -v ffmpeg
+          command -v ffprobe
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
       - name: Fetch exact approved source
         run: |
           test -n "$SOURCE_URL"
