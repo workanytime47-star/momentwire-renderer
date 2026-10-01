@@ -63,9 +63,12 @@ jobs:
       - name: Verify runtime dependencies
         run: |
           python3 --version
-          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq ffmpeg
+          if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+            ffmpeg -version | head -1
+            ffprobe -version | head -1
+          else
+            sudo timeout 120s apt-get update -qq
+            sudo timeout 180s apt-get install -y -qq ffmpeg
           fi
       - name: Fetch exact approved source
         run: |
